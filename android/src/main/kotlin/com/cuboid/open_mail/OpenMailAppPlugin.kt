@@ -13,38 +13,20 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
-import io.flutter.plugin.common.PluginRegistry.Registrar
 
 class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
     private lateinit var channel: MethodChannel
     private lateinit var applicationContext: Context
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-        // Although getFlutterEngine is deprecated we still need to use it for
-        // apps not updated to Flutter Android v2 embedding
-        channel = MethodChannel(flutterPluginBinding.flutterEngine.dartExecutor, "open_mail")
+        channel = MethodChannel(flutterPluginBinding.binaryMessenger, "open_mail")
         channel.setMethodCallHandler(this)
         init(flutterPluginBinding.applicationContext)
     }
 
-    // This static function is optional and equivalent to onAttachedToEngine. It supports the old
-    // pre-Flutter-1.12 Android projects. You are encouraged to continue supporting
-    // plugin registration via this function while apps migrate to use the new Android APIs
-    // post-flutter-1.12 via https://flutter.dev/go/android-project-migration.
-    //
-    // It is encouraged to share logic between onAttachedToEngine and registerWith to keep
-    // them functionally equivalent. Only one of onAttachedToEngine or registerWith will be called
-    // depending on the user's project. onAttachedToEngine or registerWith must both be defined
-    // in the same class.
-    companion object {
-        @JvmStatic
-        fun registerWith(registrar: Registrar) {
-            val channel = MethodChannel(registrar.messenger(), "open_mail")
-            val plugin = OpenMailAppPlugin()
-            channel.setMethodCallHandler(plugin)
-            plugin.init(registrar.context())
-        }
-    }
+    // The companion object with the static registerWith method has been removed
+    // as it was using outdated Flutter plugin APIs and causing compilation errors.
+    // Modern Flutter plugins rely on the FlutterPlugin interface implementation.
 
     fun init(context: Context) {
         applicationContext = context

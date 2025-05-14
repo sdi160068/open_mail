@@ -1,0 +1,2 @@
+/Users/mrcse/Cuboid Work/open_mail/example/android/app/.cxx/Debug/2u12572h/x86_64/CMakeFiles/edit_cache.dir
+/Users/mrcse/Cuboid Work/open_mail/example/android/app/.cxx/Debug/2u12572h/x86_64/CMakeFiles/rebuild_cache.dir
