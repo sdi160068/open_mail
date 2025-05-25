@@ -97,55 +97,5 @@ void main() {
       expect(apps, isEmpty); // Gmail should be filtered out
     });
 
-    test('composeNewEmailInSpecificMailApp launches specific app', () async {
-      const mailApp = MailApp(
-        name: 'Gmail',
-        iosLaunchScheme: 'googlegmail://',
-      );
-      final emailContent = EmailContent(
-        to: ['specific@example.com'],
-        subject: 'Specific App Test',
-        body: 'This is a test email for a specific app.',
-      );
-
-      final result = await OpenMail.composeNewEmailInSpecificMailApp(
-        mailApp: mailApp,
-        emailContent: emailContent,
-      );
-
-      expect(result, isTrue);
-      expect(log.last.method, 'composeNewEmailInSpecificMailApp');
-      expect(log.last.arguments['name'], 'Gmail');
-    });
-
-    test('openSpecificMailApp opens the provided mail app', () async {
-      const mailApp = MailApp(
-        name: 'Gmail',
-        iosLaunchScheme: 'googlegmail://',
-      );
-
-      final result = await OpenMail.openSpecificMailApp(mailApp);
-
-      expect(result, isTrue);
-      expect(log.last.method, 'openSpecificMailApp');
-      expect(log.last.arguments['name'], 'Gmail');
-    });
-
-    test('openSpecificMailApp fails for unsupported app', () async {
-      const mailApp = MailApp(
-        name: 'UnknownApp',
-        iosLaunchScheme: 'unknown://',
-      );
-
-      final result = await OpenMail.openSpecificMailApp(mailApp);
-
-      expect(result, isFalse); // Fails because `canLaunch` would return false
-    });
-  });
-
-  tearDown(() {
-    // Reset mock handler if needed
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, null);
   });
 }

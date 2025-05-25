@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2025-05-25
+
+### Bug Fixes
+
+- Fixed mail app detection in Android release builds.
+- Resolved "Abstract classes can't be instantiated!" error caused by GSON serialization issues in release mode.
+- Updated the JSON serialization for app data to use JSONObject directly instead of GSON to prevent ProGuard/R8 obfuscation problems.
+- Added proper null safety handling in native code for email content fields.
+- Updated ProGuard rules to correctly keep necessary classes and their members.
+- Ensured consistent creation of `App` objects in Kotlin code.
+
 ## [1.0.0] - 2025-05-15
 
 ### Major Upgrade
@@ -10,7 +21,6 @@ All notable changes to this project will be documented in this file.
 - Updated Android build to use AGP 8.2.2, Kotlin 1.8.22, compileSdk 35, and minSdk 26.
 - Improved compatibility with latest Flutter and Android versions.
 - Fixed platform channel and plugin registration issues.
-
 
 ## [0.0.7] - 2025-01-04
 

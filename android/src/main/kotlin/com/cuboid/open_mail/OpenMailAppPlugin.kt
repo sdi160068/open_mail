@@ -7,6 +7,8 @@ import android.net.Uri
 import androidx.annotation.NonNull
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+import org.json.JSONArray
+import org.json.JSONObject
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
@@ -47,8 +49,17 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
             result.success(opened)
         } else if (call.method == "getMainApps") {
             val apps = getInstalledMailApps()
-            val appsJson = Gson().toJson(apps)
-            result.success(appsJson)
+            
+            // Create JSON manually rather than using Gson to avoid issues with obfuscation
+            val jsonArray = JSONArray()
+            for (app in apps) {
+                val jsonObj = JSONObject()
+                jsonObj.put("name", app.name)
+                jsonObj.put("nativeId", app.nativeId)
+                jsonArray.put(jsonObj)
+            }
+            
+            result.success(jsonArray.toString())
         } else {
             result.notImplemented()
         }
@@ -97,7 +108,17 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
 
     private fun composeNewEmailAppIntent(@NonNull chooserTitle: String, @NonNull contentJson: String): Boolean {
         val packageManager = applicationContext.packageManager
-        val emailContent = Gson().fromJson(contentJson, EmailContent::class.java)
+        
+        // Parse the JSON manually to avoid GSON issues with release builds
+        val jsonObject = try {
+            org.json.JSONObject(contentJson)
+        } catch (e: Exception) {
+            // If parsing fails, return false
+            return false
+        }
+        
+        // Extract email content fields directly
+        val emailContent = parseEmailContent(jsonObject)
         val emailIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))
 
         val activitiesHandlingEmails = packageManager.queryIntentActivities(emailIntent, 0)
@@ -107,9 +128,9 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
                 type = "text/plain"
                 setClassName(activitiesHandlingEmails.first().activityInfo.packageName, activitiesHandlingEmails.first().activityInfo.name)
 
-                putExtra(Intent.EXTRA_EMAIL, emailContent.to.toTypedArray())
-                putExtra(Intent.EXTRA_CC, emailContent.cc.toTypedArray())
-                putExtra(Intent.EXTRA_BCC, emailContent.bcc.toTypedArray())
+                putExtra(Intent.EXTRA_EMAIL, emailContent.to?.toTypedArray() ?: emptyArray<String>())
+                putExtra(Intent.EXTRA_CC, emailContent.cc?.toTypedArray() ?: emptyArray<String>())
+                putExtra(Intent.EXTRA_BCC, emailContent.bcc?.toTypedArray() ?: emptyArray<String>())
                 putExtra(Intent.EXTRA_SUBJECT, emailContent.subject)
                 putExtra(Intent.EXTRA_TEXT, emailContent.body)
             }, chooserTitle)
@@ -124,9 +145,9 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
                                     data = Uri.parse("mailto:")
                                     type = "text/plain"
                                     setClassName(activityHandlingEmail.activityInfo.packageName, activityHandlingEmail.activityInfo.name)
-                                    putExtra(Intent.EXTRA_EMAIL, emailContent.to.toTypedArray())
-                                    putExtra(Intent.EXTRA_CC, emailContent.cc.toTypedArray())
-                                    putExtra(Intent.EXTRA_BCC, emailContent.bcc.toTypedArray())
+                                    putExtra(Intent.EXTRA_EMAIL, emailContent.to?.toTypedArray() ?: emptyArray<String>())
+                                    putExtra(Intent.EXTRA_CC, emailContent.cc?.toTypedArray() ?: emptyArray<String>())
+                                    putExtra(Intent.EXTRA_BCC, emailContent.bcc?.toTypedArray() ?: emptyArray<String>())
                                     putExtra(Intent.EXTRA_SUBJECT, emailContent.subject)
                                     putExtra(Intent.EXTRA_TEXT, emailContent.body)
                                 },
@@ -167,7 +188,17 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
 
     private fun composeNewEmailInSpecificEmailAppIntent(@NonNull name: String, @NonNull contentJson: String): Boolean {
         val packageManager = applicationContext.packageManager
-        val emailContent = Gson().fromJson(contentJson, EmailContent::class.java)
+        
+        // Parse the JSON manually to avoid GSON issues with release builds
+        val jsonObject = try {
+            org.json.JSONObject(contentJson)
+        } catch (e: Exception) {
+            // If parsing fails, return false
+            return false
+        }
+        
+        // Extract email content fields directly
+        val emailContent = parseEmailContent(jsonObject)
         val emailIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))
 
         val activitiesHandlingEmails = packageManager.queryIntentActivities(emailIntent, 0)
@@ -179,9 +210,9 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
             data = Uri.parse("mailto:")
             type = "text/plain"
             setClassName(specificEmailActivity.activityInfo.packageName, specificEmailActivity.activityInfo.name)
-            putExtra(Intent.EXTRA_EMAIL, emailContent.to.toTypedArray())
-            putExtra(Intent.EXTRA_CC, emailContent.cc.toTypedArray())
-            putExtra(Intent.EXTRA_BCC, emailContent.bcc.toTypedArray())
+            putExtra(Intent.EXTRA_EMAIL, emailContent.to?.toTypedArray() ?: emptyArray<String>())
+            putExtra(Intent.EXTRA_CC, emailContent.cc?.toTypedArray() ?: emptyArray<String>())
+            putExtra(Intent.EXTRA_BCC, emailContent.bcc?.toTypedArray() ?: emptyArray<String>())
             putExtra(Intent.EXTRA_SUBJECT, emailContent.subject)
             putExtra(Intent.EXTRA_TEXT, emailContent.body)
         }
@@ -201,24 +232,73 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
             val mailApps = mutableListOf<App>()
             for (i in 0 until activitiesHandlingEmails.size) {
                 val activityHandlingEmail = activitiesHandlingEmails[i]
-                mailApps.add(App(activityHandlingEmail.loadLabel(packageManager).toString()))
+                val packageName = activityHandlingEmail.activityInfo.packageName
+                val appName = activityHandlingEmail.loadLabel(packageManager).toString()
+                mailApps.add(App(name = appName, nativeId = packageName))
             }
             mailApps
         } else {
             emptyList()
         }
     }
+
+    /**
+     * Parse email content from JSONObject instead of using GSON
+     * This is more reliable in release builds with R8/ProGuard
+     */
+    private fun parseEmailContent(json: org.json.JSONObject): EmailContent {
+        val to = mutableListOf<String>()
+        val cc = mutableListOf<String>()
+        val bcc = mutableListOf<String>()
+        var subject: String? = null
+        var body: String? = null
+
+        try {
+            if (json.has("to") && !json.isNull("to")) {
+                val toArray = json.getJSONArray("to")
+                for (i in 0 until toArray.length()) {
+                    to.add(toArray.getString(i))
+                }
+            }
+            
+            if (json.has("cc") && !json.isNull("cc")) {
+                val ccArray = json.getJSONArray("cc")
+                for (i in 0 until ccArray.length()) {
+                    cc.add(ccArray.getString(i))
+                }
+            }
+            
+            if (json.has("bcc") && !json.isNull("bcc")) {
+                val bccArray = json.getJSONArray("bcc")
+                for (i in 0 until bccArray.length()) {
+                    bcc.add(bccArray.getString(i))
+                }
+            }
+            
+            if (json.has("subject") && !json.isNull("subject")) {
+                subject = json.getString("subject")
+            }
+            
+            if (json.has("body") && !json.isNull("body")) {
+                body = json.getString("body")
+            }
+        } catch (e: Exception) {
+            // Ignore parsing errors and use default values
+        }
+
+        return EmailContent(to, cc, bcc, subject, body)
+    }
 }
 
 data class App(
-        @SerializedName("name") val name: String
+        @SerializedName("name") val name: String,
+        @SerializedName("nativeId") val nativeId: String
 )
 
 data class EmailContent (
-
-        @SerializedName("to") val to: List<String>,
-        @SerializedName("cc") val cc: List<String>,
-        @SerializedName("bcc") val bcc: List<String>,
-        @SerializedName("subject") val subject: String,
-        @SerializedName("body") val body: String
+        @SerializedName("to") val to: List<String>? = null,
+        @SerializedName("cc") val cc: List<String>? = null,
+        @SerializedName("bcc") val bcc: List<String>? = null,
+        @SerializedName("subject") val subject: String? = null,
+        @SerializedName("body") val body: String? = null
 )

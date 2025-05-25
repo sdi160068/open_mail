@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 
+import 'package:collection/collection.dart'; // Import for firstWhereOrNull
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:platform/platform.dart';
@@ -19,8 +20,83 @@ const String _LAUNCH_SCHEME_FASTMAIL = 'fastmail://';
 const String _LAUNCH_SCHEME_SUPERHUMAN = 'superhuman://';
 const String _LAUNCH_SCHEME_PROTONMAIL = 'protonmail://';
 
-/// Provides ability to query device for installed email apps and open those
-/// apps
+/// A list of mail apps that can be used to open email.
+///
+/// This list is not exhaustive and may not include all mail apps available on
+/// the user's device.
+final List<MailApp> mailApps = <MailApp>[
+  MailApp(
+    name: 'Apple Mail',
+    iosLaunchScheme: _LAUNCH_SCHEME_APPLE_MAIL,
+    composeData: ComposeData(
+      scheme: 'message://',
+    ),
+  ),
+  MailApp(
+    name: 'Gmail',
+    iosLaunchScheme: _LAUNCH_SCHEME_GMAIL,
+    composeData: ComposeData(
+      scheme: '$_LAUNCH_SCHEME_GMAIL/co',
+    ),
+  ),
+  MailApp(
+    name: 'Dispatch',
+    iosLaunchScheme: _LAUNCH_SCHEME_DISPATCH,
+    composeData: ComposeData(
+      scheme: '$_LAUNCH_SCHEME_DISPATCH/compose',
+    ),
+  ),
+  MailApp(
+    name: 'Spark',
+    iosLaunchScheme: _LAUNCH_SCHEME_SPARK,
+    composeData: ComposeData(
+      scheme: '${_LAUNCH_SCHEME_SPARK}compose',
+      toParameter: 'recipient',
+    ),
+  ),
+  MailApp(
+    name: 'Airmail',
+    iosLaunchScheme: _LAUNCH_SCHEME_AIRMAIL,
+    composeData: ComposeData(
+      scheme: '${_LAUNCH_SCHEME_AIRMAIL}compose',
+      bodyParameter: 'plainBody',
+    ),
+  ),
+  MailApp(
+    name: 'Outlook',
+    iosLaunchScheme: _LAUNCH_SCHEME_OUTLOOK,
+    composeData: ComposeData(
+      scheme: '${_LAUNCH_SCHEME_OUTLOOK}compose',
+    ),
+  ),
+  MailApp(
+    name: 'Yahoo Mail',
+    iosLaunchScheme: _LAUNCH_SCHEME_YAHOO,
+    composeData: ComposeData(
+      scheme: '${_LAUNCH_SCHEME_YAHOO}mail/compose',
+    ),
+  ),
+  MailApp(
+    name: 'Fastmail',
+    iosLaunchScheme: _LAUNCH_SCHEME_FASTMAIL,
+    composeData: ComposeData(
+      scheme: '${_LAUNCH_SCHEME_FASTMAIL}mail/compose',
+    ),
+  ),
+  MailApp(
+    name: 'Superhuman',
+    iosLaunchScheme: _LAUNCH_SCHEME_SUPERHUMAN,
+    composeData: ComposeData(scheme: _LAUNCH_SCHEME_SUPERHUMAN),
+  ),
+  MailApp(
+    name: 'ProtonMail',
+    iosLaunchScheme: _LAUNCH_SCHEME_PROTONMAIL,
+    composeData: ComposeData(
+      scheme: '${_LAUNCH_SCHEME_PROTONMAIL}mailto:',
+    ),
+  ),
+];
+
 class OpenMail {
   OpenMail._();
 
@@ -38,70 +114,70 @@ class OpenMail {
       name: 'Apple Mail',
       iosLaunchScheme: _LAUNCH_SCHEME_APPLE_MAIL,
       composeData: ComposeData(
-        base: 'mailto:',
+        scheme: 'message://',
       ),
     ),
     MailApp(
       name: 'Gmail',
       iosLaunchScheme: _LAUNCH_SCHEME_GMAIL,
       composeData: ComposeData(
-        base: '$_LAUNCH_SCHEME_GMAIL/co',
+        scheme: '$_LAUNCH_SCHEME_GMAIL/co',
       ),
     ),
     MailApp(
       name: 'Dispatch',
       iosLaunchScheme: _LAUNCH_SCHEME_DISPATCH,
       composeData: ComposeData(
-        base: '$_LAUNCH_SCHEME_DISPATCH/compose',
+        scheme: '$_LAUNCH_SCHEME_DISPATCH/compose',
       ),
     ),
     MailApp(
       name: 'Spark',
       iosLaunchScheme: _LAUNCH_SCHEME_SPARK,
       composeData: ComposeData(
-        base: '${_LAUNCH_SCHEME_SPARK}compose',
-        to: 'recipient',
+        scheme: '${_LAUNCH_SCHEME_SPARK}compose',
+        toParameter: 'recipient',
       ),
     ),
     MailApp(
       name: 'Airmail',
       iosLaunchScheme: _LAUNCH_SCHEME_AIRMAIL,
       composeData: ComposeData(
-        base: '${_LAUNCH_SCHEME_AIRMAIL}compose',
-        body: 'plainBody',
+        scheme: '${_LAUNCH_SCHEME_AIRMAIL}compose',
+        bodyParameter: 'plainBody',
       ),
     ),
     MailApp(
       name: 'Outlook',
       iosLaunchScheme: _LAUNCH_SCHEME_OUTLOOK,
       composeData: ComposeData(
-        base: '${_LAUNCH_SCHEME_OUTLOOK}compose',
+        scheme: '${_LAUNCH_SCHEME_OUTLOOK}compose',
       ),
     ),
     MailApp(
-      name: 'Yahoo',
+      name: 'Yahoo Mail',
       iosLaunchScheme: _LAUNCH_SCHEME_YAHOO,
       composeData: ComposeData(
-        base: '${_LAUNCH_SCHEME_YAHOO}mail/compose',
+        scheme: '${_LAUNCH_SCHEME_YAHOO}mail/compose',
       ),
     ),
     MailApp(
       name: 'Fastmail',
       iosLaunchScheme: _LAUNCH_SCHEME_FASTMAIL,
       composeData: ComposeData(
-        base: '${_LAUNCH_SCHEME_FASTMAIL}mail/compose',
+        scheme: '${_LAUNCH_SCHEME_FASTMAIL}mail/compose',
       ),
     ),
     MailApp(
       name: 'Superhuman',
       iosLaunchScheme: _LAUNCH_SCHEME_SUPERHUMAN,
-      composeData: ComposeData(),
+      composeData: ComposeData(scheme: _LAUNCH_SCHEME_SUPERHUMAN),
     ),
     MailApp(
       name: 'ProtonMail',
       iosLaunchScheme: _LAUNCH_SCHEME_PROTONMAIL,
       composeData: ComposeData(
-        base: '${_LAUNCH_SCHEME_PROTONMAIL}mailto:',
+        scheme: '${_LAUNCH_SCHEME_PROTONMAIL}mailto:',
       ),
     ),
   ];
@@ -131,10 +207,15 @@ class OpenMail {
     } else if (_isIOS) {
       final apps = await _getIosMailApps();
       if (apps.length == 1) {
-        final result = await launchUrl(
-          Uri.parse(apps.first.iosLaunchScheme),
-        );
-        return OpenMailAppResult(didOpen: result);
+        // Ensure iosLaunchScheme is not null before parsing
+        final launchScheme = apps.first.iosLaunchScheme;
+        if (launchScheme != null) {
+          final result = await launchUrl(
+            Uri.parse(launchScheme),
+          );
+          return OpenMailAppResult(didOpen: result);
+        }
+        return OpenMailAppResult(didOpen: false); // Fallback if scheme is null
       } else {
         return OpenMailAppResult(didOpen: false, options: apps);
       }
@@ -156,9 +237,11 @@ class OpenMail {
     if (_isAndroid) {
       final result = await _channel.invokeMethod<bool>(
             'composeNewEmailInMailApp',
-            <String, String>{
+            <String, dynamic>{
+              // Changed from <String, String> to <String, dynamic>
               'nativePickerTitle': nativePickerTitle,
-              'emailContent': emailContent.toJson(),
+              // Ensure toJson() returns a Map, then jsonEncode if native side expects a string
+              'emailContent': jsonEncode(emailContent.toJson()),
             },
           ) ??
           false;
@@ -200,7 +283,7 @@ class OpenMail {
             'composeNewEmailInSpecificMailApp',
             <String, dynamic>{
               'name': mailApp.name,
-              'emailContent': emailContent.toJson(),
+              'emailContent': jsonEncode(emailContent.toJson()),
             },
           ) ??
           false;
@@ -220,34 +303,48 @@ class OpenMail {
 
   /// Attempts to open a specific email app installed on the device.
   /// Get a [MailApp] from calling [getMailApps]
-  static Future<bool> openSpecificMailApp(MailApp mailApp) async {
-    if (_isAndroid) {
-      var result = await _channel.invokeMethod<bool>(
-            'openSpecificMailApp',
-            <String, dynamic>{'name': mailApp.name},
-          ) ??
-          false;
-      return result;
-    } else if (_isIOS) {
-      return await launchUrl(
-        Uri.parse(mailApp.iosLaunchScheme),
-      );
-    } else {
-      throw UnsupportedError('Platform not supported');
+  static Future<OpenMailAppResult> openSpecificMailApp(
+    // Changed return type to Future<OpenMailAppResult>
+    String name,
+    EmailContent? emailContent,
+  ) async {
+    final mailApp = _supportedMailApps
+        .firstWhereOrNull((x) => x.name == name); // Use _supportedMailApps
+    if (mailApp == null || mailApp.iosLaunchScheme == null) {
+      return OpenMailAppResult(didOpen: false);
     }
+    String? launchScheme =
+        mailApp.iosLaunchScheme; // No need for '!' if already checked
+    if (emailContent != null) {
+      launchScheme = mailApp.composeLaunchScheme(emailContent);
+    }
+
+    if (launchScheme != null && await canLaunchUrl(Uri.parse(launchScheme))) {
+      await launchUrl(Uri.parse(launchScheme));
+      return OpenMailAppResult(didOpen: true);
+    }
+    return OpenMailAppResult(didOpen: false);
   }
 
-  /// Returns a list of installed email apps on the device
-  ///
-  /// iOS: [MailApp.iosLaunchScheme] will be populated
+  /// Returns a list of mail apps that can be used to open email.
   static Future<List<MailApp>> getMailApps() async {
     if (_isAndroid) {
+      // Use static getter
       return await _getAndroidMailApps();
     } else if (_isIOS) {
-      return await _getIosMailApps();
-    } else {
-      throw UnsupportedError('Platform not supported');
+      // Use static getter
+      final List<MailApp> apps = [];
+      for (final app in _supportedMailApps) {
+        // Use _supportedMailApps
+        if (app.iosLaunchScheme != null &&
+            await canLaunchUrl(Uri.parse(app.iosLaunchScheme!))) {
+          // Assert non-null after check
+          apps.add(app);
+        }
+      }
+      return apps;
     }
+    return [];
   }
 
   static Future<List<MailApp>> _getAndroidMailApps() async {
@@ -255,10 +352,19 @@ class OpenMail {
     var apps = <MailApp>[];
 
     if (appsJson != null) {
-      apps = (jsonDecode(appsJson) as Iterable)
-          .map((x) => MailApp.fromJson(x))
-          .where((app) => !_filterList.contains(app.name.toLowerCase()))
-          .toList();
+      try {
+        final List<dynamic> parsedList = jsonDecode(appsJson);
+
+        apps = parsedList
+            .map((item) => MailApp(
+                  name: item['name'] ?? '',
+                  nativeId: item['nativeId'],
+                ))
+            .where((app) => !_filterList.contains(app.name.toLowerCase()))
+            .toList();
+      } catch (e) {
+        print('Error parsing mail apps: $e');
+      }
     }
 
     return apps;
@@ -267,7 +373,10 @@ class OpenMail {
   static Future<List<MailApp>> _getIosMailApps() async {
     var installedApps = <MailApp>[];
     for (var app in _supportedMailApps) {
-      if (await canLaunchUrl(Uri.parse(app.iosLaunchScheme)) &&
+      // Ensure iosLaunchScheme is not null before parsing
+      final launchScheme = app.iosLaunchScheme;
+      if (launchScheme != null &&
+          await canLaunchUrl(Uri.parse(launchScheme)) &&
           !_filterList.contains(app.name.toLowerCase())) {
         installedApps.add(app);
       }
@@ -321,7 +430,8 @@ class MailAppPickerDialog extends StatelessWidget {
                   emailContent: content,
                 );
               } else {
-                OpenMail.openSpecificMailApp(app);
+                // Pass app.name and null for emailContent
+                OpenMail.openSpecificMailApp(app.name, null);
               }
 
               Navigator.pop(context);
@@ -332,97 +442,169 @@ class MailAppPickerDialog extends StatelessWidget {
   }
 }
 
-class ComposeData {
-  String base;
-  String to;
-  String cc;
-  String bcc;
-  String subject;
-  String body;
-  bool composeStarted = false;
+class MailApp {
+  /// The display name of the mail app.
+  final String name;
 
-  String get qsPairSeparator {
-    String separator = !composeStarted ? '?' : '&';
-    composeStarted = true;
-    return separator;
+  /// The underlying unique identifier of the mail app
+  /// This is package name on Android and url scheme on iOS
+  final String? nativeId;
+
+  /// The iOS URL scheme for opening the app.
+  final String? iosLaunchScheme;
+
+  /// Data for composing an email in the app.
+  final ComposeData? composeData;
+
+  MailApp(
+      {required this.name,
+      this.nativeId,
+      this.iosLaunchScheme,
+      this.composeData});
+
+  factory MailApp.fromJson(Map<String, dynamic> json) {
+    return MailApp(
+      name: json['name'] as String? ?? '', // Ensure name is not null
+      nativeId: json['nativeId'] as String?,
+      iosLaunchScheme: json['iosLaunchScheme'] as String?,
+      composeData: json['composeData'] != null
+          ? ComposeData.fromJson(json['composeData'] as Map<String, dynamic>)
+          : null,
+    );
   }
 
-  ComposeData({
-    this.base = 'mailto:',
-    this.to = 'to',
-    this.cc = 'cc',
-    this.bcc = 'bcc',
-    this.subject = 'subject',
-    this.body = 'body',
-  });
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'name': name,
+        'nativeId': nativeId,
+        'iosLaunchScheme': iosLaunchScheme,
+        'composeData': composeData?.toJson(),
+      }..removeWhere((key, value) => value == null);
 
-  String getComposeLaunchSchemeForIos(EmailContent content) {
-    String scheme = base;
-
-    if (content.to.isNotEmpty) {
-      scheme += '$qsPairSeparator$to=${content.to.join(',')}';
+  String? composeLaunchScheme(EmailContent? content) {
+    if (composeData == null || content == null) {
+      return null;
     }
+    var scheme = composeData!.scheme;
+    final qsSeparator = composeData!.queryStringSeparator ?? '?';
+    final qsPairSeparator = composeData!.queryStringPairSeparator ?? '&';
 
-    if (content.cc.isNotEmpty) {
-      scheme += '$qsPairSeparator$cc=${content.cc.join(',')}';
+    if (content.to?.isNotEmpty == true) {
+      scheme +=
+          '$qsSeparator${composeData!.toParameter}=${content.to!.join(',')}';
     }
-
-    if (content.bcc.isNotEmpty) {
-      scheme += '$qsPairSeparator$bcc=${content.bcc.join(',')}';
+    if (content.cc?.isNotEmpty == true) {
+      scheme +=
+          '$qsPairSeparator${composeData!.ccParameter}=${content.cc!.join(',')}';
     }
-
-    if (content.subject.isNotEmpty) {
-      scheme += '$qsPairSeparator$subject=${content.subject}';
+    if (content.bcc?.isNotEmpty == true) {
+      scheme +=
+          '$qsPairSeparator${composeData!.bccParameter}=${content.bcc!.join(',')}';
     }
-
-    if (content.body.isNotEmpty) {
-      scheme += '$qsPairSeparator$body=${content.body}';
+    if (content.subject?.isNotEmpty == true) {
+      scheme +=
+          '$qsPairSeparator${composeData!.subjectParameter}=${Uri.encodeComponent(content.subject!)}';
     }
-
-    // Reset to make sure you can fetch this multiple times on the same instance.
-    composeStarted = false;
-
+    if (content.body?.isNotEmpty == true) {
+      scheme +=
+          '$qsPairSeparator${composeData!.bodyParameter}=${Uri.encodeComponent(content.body!)}';
+    }
     return scheme;
-  }
-
-  @override
-  String toString() {
-    return getComposeLaunchSchemeForIos(EmailContent());
   }
 }
 
-class MailApp {
-  final String name;
-  final String iosLaunchScheme;
-  final ComposeData? composeData;
+/// Describes the content of an email to be composed.
+///
+/// All fields are optional.
+class EmailContent {
+  /// The recipient(s) of the email.
+  final List<String>? to;
 
-  const MailApp({
-    required this.name,
-    required this.iosLaunchScheme,
-    this.composeData,
+  /// The CC recipient(s) of the email.
+  final List<String>? cc;
+
+  /// The BCC recipient(s) of the email.
+  final List<String>? bcc;
+
+  /// The subject of the email.
+  final String? subject;
+
+  /// The body of the email.
+  final String? body;
+
+  EmailContent({
+    this.to,
+    this.subject,
+    this.body,
+    this.cc,
+    this.bcc,
   });
 
-  factory MailApp.fromJson(Map<String, dynamic> json) => MailApp(
-        name: json["name"],
-        iosLaunchScheme: json["iosLaunchScheme"] ?? '',
-        composeData: json["composeData"] ?? ComposeData(),
-      );
+  Map<String, dynamic> toJson() {
+    return {
+      'to': to,
+      'subject': subject,
+      'body': body,
+      'cc': cc,
+      'bcc': bcc,
+    }..removeWhere((key, value) => value == null);
+  }
+
+  factory EmailContent.fromJson(Map<String, dynamic> json) {
+    return EmailContent(
+      to: json['to'] != null ? List<String>.from(json['to'] as List) : null,
+      subject: json['subject'] as String?,
+      body: json['body'] as String?,
+      cc: json['cc'] != null ? List<String>.from(json['cc'] as List) : null,
+      bcc: json['bcc'] != null ? List<String>.from(json['bcc'] as List) : null,
+    );
+  }
+}
+
+/// Data for composing an email in a specific app.
+class ComposeData {
+  final String scheme;
+  final String? queryStringSeparator;
+  final String? queryStringPairSeparator;
+  final String toParameter;
+  final String ccParameter;
+  final String bccParameter;
+  final String subjectParameter;
+  final String bodyParameter;
+
+  ComposeData({
+    required this.scheme,
+    this.queryStringSeparator,
+    this.queryStringPairSeparator,
+    this.toParameter = 'to',
+    this.ccParameter = 'cc',
+    this.bccParameter = 'bcc',
+    this.subjectParameter = 'subject',
+    this.bodyParameter = 'body',
+  });
+
+  factory ComposeData.fromJson(Map<String, dynamic> json) {
+    return ComposeData(
+      scheme: json['scheme'] as String,
+      queryStringSeparator: json['queryStringSeparator'] as String?,
+      queryStringPairSeparator: json['queryStringPairSeparator'] as String?,
+      toParameter: json['toParameter'] as String? ?? 'to',
+      ccParameter: json['ccParameter'] as String? ?? 'cc',
+      bccParameter: json['bccParameter'] as String? ?? 'bcc',
+      subjectParameter: json['subjectParameter'] as String? ?? 'subject',
+      bodyParameter: json['bodyParameter'] as String? ?? 'body',
+    );
+  }
 
   Map<String, dynamic> toJson() => {
-        "name": name,
-        "iosLaunchScheme": iosLaunchScheme,
-        "composeData": composeData,
-      };
-
-  String? composeLaunchScheme(EmailContent content) {
-    if (OpenMail._isAndroid) {
-      return content.toJson();
-    } else if (OpenMail._isIOS) {
-      return composeData!.getComposeLaunchSchemeForIos(content);
-    } else {
-      throw Exception('Platform not supported');
-    }
-  }
+        'scheme': scheme,
+        'queryStringSeparator': queryStringSeparator,
+        'queryStringPairSeparator': queryStringPairSeparator,
+        'toParameter': toParameter,
+        'ccParameter': ccParameter,
+        'bccParameter': bccParameter,
+        'subjectParameter': subjectParameter,
+        'bodyParameter': bodyParameter,
+      }..removeWhere((key, value) => value == null);
 }
 
 /// Result of calling [OpenMail.openMailApp]
@@ -438,48 +620,4 @@ class OpenMailAppResult {
     required this.didOpen,
     this.options = const <MailApp>[],
   });
-}
-
-/// Used to populate the precomposed emails
-///
-/// [to] List of [String] Addressees,
-/// [cc] Carbon Copy [String] list
-/// [bcc] Blind carbon copy [String] list
-/// [subject] [String], getter returns [Uri.encodeComponent] from the set [String]
-/// [body] [String], getter returns [Uri.encodeComponent] from the set [String]
-class EmailContent {
-  final List<String> to;
-  final List<String> cc;
-  final List<String> bcc;
-  final String _subject;
-
-  String get subject =>
-      OpenMail._isIOS ? Uri.encodeComponent(_subject) : _subject;
-  final String _body;
-
-  String get body => OpenMail._isIOS ? Uri.encodeComponent(_body) : _body;
-
-  EmailContent({
-    List<String>? to,
-    List<String>? cc,
-    List<String>? bcc,
-    String? subject,
-    String? body,
-  })  : to = to ?? const [],
-        cc = cc ?? const [],
-        bcc = bcc ?? const [],
-        _subject = subject ?? '',
-        _body = body ?? '';
-
-  String toJson() {
-    final Map<String, dynamic> emailContent = {
-      'to': to,
-      'cc': cc,
-      'bcc': bcc,
-      'subject': subject,
-      'body': body,
-    };
-
-    return json.encode(emailContent);
-  }
 }
