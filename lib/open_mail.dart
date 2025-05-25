@@ -9,7 +9,7 @@ import 'package:platform/platform.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Launch Schemes for supported apps:
-const String _LAUNCH_SCHEME_APPLE_MAIL = 'message://';
+const String _LAUNCH_SCHEME_APPLE_MAIL = 'mailto://';
 const String _LAUNCH_SCHEME_GMAIL = 'googlegmail://';
 const String _LAUNCH_SCHEME_DISPATCH = 'x-dispatch://';
 const String _LAUNCH_SCHEME_SPARK = 'readdle-spark://';
@@ -29,7 +29,7 @@ final List<MailApp> mailApps = <MailApp>[
     name: 'Apple Mail',
     iosLaunchScheme: _LAUNCH_SCHEME_APPLE_MAIL,
     composeData: ComposeData(
-      scheme: 'message://',
+      scheme: 'mailto://',
     ),
   ),
   MailApp(
@@ -114,7 +114,7 @@ class OpenMail {
       name: 'Apple Mail',
       iosLaunchScheme: _LAUNCH_SCHEME_APPLE_MAIL,
       composeData: ComposeData(
-        scheme: 'message://',
+        scheme: 'mailto://',
       ),
     ),
     MailApp(
@@ -238,29 +238,92 @@ class OpenMail {
       final result = await _channel.invokeMethod<bool>(
             'composeNewEmailInMailApp',
             <String, dynamic>{
-              // Changed from <String, String> to <String, dynamic>
               'nativePickerTitle': nativePickerTitle,
-              // Ensure toJson() returns a Map, then jsonEncode if native side expects a string
               'emailContent': jsonEncode(emailContent.toJson()),
             },
           ) ??
           false;
-
       return OpenMailAppResult(didOpen: result);
     } else if (_isIOS) {
       List<MailApp> installedApps = await _getIosMailApps();
       if (installedApps.length == 1) {
+        final MailApp app = installedApps.first;
         bool result = false;
-        String? launchScheme =
-            installedApps.first.composeLaunchScheme(emailContent);
-        if (launchScheme != null) {
-          result = await launchUrl(Uri.parse(launchScheme),
-              mode: LaunchMode.externalNonBrowserApplication);
+        // Always use mailto: for Apple Mail to allow pre-filled fields
+        if (app.name == 'Apple Mail') {
+          try {
+            print(
+                'DEBUG: Apple Mail detected, using mailto: fallback for compose');
+            final mailtoUri = Uri(
+              scheme: 'mailto',
+              path: emailContent.to?.join(',') ?? '',
+              queryParameters: {
+                'subject': emailContent.subject ?? '',
+                'body': emailContent.body ?? '',
+                if (emailContent.cc?.isNotEmpty ?? false)
+                  'cc': emailContent.cc!.join(','),
+                if (emailContent.bcc?.isNotEmpty ?? false)
+                  'bcc': emailContent.bcc!.join(','),
+              },
+            );
+            print('DEBUG: Mailto URI for Apple Mail: $mailtoUri');
+            result = await launchUrl(mailtoUri);
+          } catch (e) {
+            print('ERROR: Apple Mail mailto fallback failed: $e');
+          }
+        } else {
+          String? launchScheme = app.composeLaunchScheme(emailContent);
+          if (launchScheme != null) {
+            try {
+              final uri = Uri.parse(launchScheme);
+              final canLaunch = await canLaunchUrl(uri);
+              print(
+                  'DEBUG: Can launch custom scheme for ${app.name}: $canLaunch');
+              if (canLaunch) {
+                result = await launchUrl(uri,
+                    mode: LaunchMode.externalNonBrowserApplication);
+              } else {
+                print('DEBUG: Custom scheme failed, falling back to mailto:');
+                final mailtoUri = Uri(
+                  scheme: 'mailto',
+                  path: emailContent.to?.join(',') ?? '',
+                  queryParameters: {
+                    'subject': emailContent.subject ?? '',
+                    'body': emailContent.body ?? '',
+                    if (emailContent.cc?.isNotEmpty ?? false)
+                      'cc': emailContent.cc!.join(','),
+                    if (emailContent.bcc?.isNotEmpty ?? false)
+                      'bcc': emailContent.bcc!.join(','),
+                  },
+                );
+                print('DEBUG: Mailto URI fallback: $mailtoUri');
+                result = await launchUrl(mailtoUri);
+              }
+            } catch (e) {
+              print('ERROR: Custom scheme failed, trying mailto fallback: $e');
+              try {
+                final mailtoUri = Uri(
+                  scheme: 'mailto',
+                  path: emailContent.to?.join(',') ?? '',
+                  queryParameters: {
+                    'subject': emailContent.subject ?? '',
+                    'body': emailContent.body ?? '',
+                    if (emailContent.cc?.isNotEmpty ?? false)
+                      'cc': emailContent.cc!.join(','),
+                    if (emailContent.bcc?.isNotEmpty ?? false)
+                      'bcc': emailContent.bcc!.join(','),
+                  },
+                );
+                print('DEBUG: Mailto URI fallback (exception): $mailtoUri');
+                result = await launchUrl(mailtoUri);
+              } catch (e2) {
+                print('ERROR: Mailto fallback also failed: $e2');
+              }
+            }
+          }
         }
         return OpenMailAppResult(didOpen: result);
       } else {
-        // This isn't ideal since you can't do anything with this...
-        // Need to adapt the flow with that popup to also allow to pass emailcontent there.
         return OpenMailAppResult(didOpen: false, options: installedApps);
       }
     } else {
@@ -278,6 +341,8 @@ class OpenMail {
     required MailApp mailApp,
     required EmailContent emailContent,
   }) async {
+    // Debug prints removed for production
+
     if (_isAndroid) {
       final result = await _channel.invokeMethod<bool>(
             'composeNewEmailInSpecificMailApp',
@@ -287,14 +352,102 @@ class OpenMail {
             },
           ) ??
           false;
+      // Debug print removed
       return result;
     } else if (_isIOS) {
-      String? launchScheme = mailApp.composeLaunchScheme(emailContent);
-      if (launchScheme != null) {
-        return await launchUrl(Uri.parse(launchScheme),
-            mode: LaunchMode.externalNonBrowserApplication);
+      // Always use mailto: for Apple Mail
+      if (mailApp.name == 'Apple Mail') {
+        try {
+          // Debug print removed
+          final mailtoUri = Uri(
+            scheme: 'mailto',
+            path: emailContent.to?.join(',') ?? '',
+            queryParameters: {
+              'subject': emailContent.subject ?? '',
+              'body': emailContent.body ?? '',
+              if (emailContent.cc?.isNotEmpty ?? false)
+                'cc': emailContent.cc!.join(','),
+              if (emailContent.bcc?.isNotEmpty ?? false)
+                'bcc': emailContent.bcc!.join(','),
+            },
+          );
+          // Debug print removed
+          return await launchUrl(mailtoUri);
+        } catch (e) {
+          // Debug print removed
+          return false;
+        }
       }
-
+      // Otherwise, try custom scheme, fallback to mailto if needed
+      String? launchScheme = mailApp.composeLaunchScheme(emailContent);
+      // Debug print removed
+      if (launchScheme != null) {
+        try {
+          final uri = Uri.parse(launchScheme);
+          final canLaunch = await canLaunchUrl(uri);
+          // Debug print removed
+          if (canLaunch) {
+            // Special handling for Gmail
+            if (mailApp.name == 'Gmail') {
+              // Debug print removed
+              final recipient = emailContent.to?.join(',') ?? '';
+              final subject = Uri.encodeComponent(emailContent.subject ?? '');
+              final body = Uri.encodeComponent(emailContent.body ?? '');
+              final gmailUrl =
+                  'googlegmail://co?to=$recipient&subject=$subject&body=$body';
+              // Debug print removed
+              try {
+                return await launchUrl(Uri.parse(gmailUrl),
+                    mode: LaunchMode.externalNonBrowserApplication);
+              } catch (e) {
+                // Debug print removed
+              }
+            }
+            // Standard launch for other apps
+            final result = await launchUrl(uri,
+                mode: LaunchMode.externalNonBrowserApplication);
+            // Debug print removed
+            return result;
+          } else {
+            // Debug print removed
+            final mailtoUri = Uri(
+              scheme: 'mailto',
+              path: emailContent.to?.join(',') ?? '',
+              queryParameters: {
+                'subject': emailContent.subject ?? '',
+                'body': emailContent.body ?? '',
+                if (emailContent.cc?.isNotEmpty ?? false)
+                  'cc': emailContent.cc!.join(','),
+                if (emailContent.bcc?.isNotEmpty ?? false)
+                  'bcc': emailContent.bcc!.join(','),
+              },
+            );
+            // Debug print removed
+            return await launchUrl(mailtoUri);
+          }
+        } catch (e) {
+          // Debug print removed
+          try {
+            final mailtoUri = Uri(
+              scheme: 'mailto',
+              path: emailContent.to?.join(',') ?? '',
+              queryParameters: {
+                'subject': emailContent.subject ?? '',
+                'body': emailContent.body ?? '',
+                if (emailContent.cc?.isNotEmpty ?? false)
+                  'cc': emailContent.cc!.join(','),
+                if (emailContent.bcc?.isNotEmpty ?? false)
+                  'bcc': emailContent.bcc!.join(','),
+              },
+            );
+            // Debug print removed
+            return await launchUrl(mailtoUri);
+          } catch (e2) {
+            // Debug print removed
+            return false;
+          }
+        }
+      }
       return false;
     } else {
       throw UnsupportedError('Platform currently not supported');
@@ -308,21 +461,67 @@ class OpenMail {
     String name,
     EmailContent? emailContent,
   ) async {
+    // Debug print removed
     final mailApp = _supportedMailApps
         .firstWhereOrNull((x) => x.name == name); // Use _supportedMailApps
     if (mailApp == null || mailApp.iosLaunchScheme == null) {
+      // Debug print removed
       return OpenMailAppResult(didOpen: false);
     }
-    String? launchScheme =
-        mailApp.iosLaunchScheme; // No need for '!' if already checked
+
+    String? launchScheme;
+
     if (emailContent != null) {
+      // Debug print removed
       launchScheme = mailApp.composeLaunchScheme(emailContent);
+      // Debug print removed
+    } else {
+      launchScheme = mailApp.iosLaunchScheme;
+      // Debug print removed
     }
 
-    if (launchScheme != null && await canLaunchUrl(Uri.parse(launchScheme))) {
-      await launchUrl(Uri.parse(launchScheme));
-      return OpenMailAppResult(didOpen: true);
+    if (launchScheme != null) {
+      try {
+        final uri = Uri.parse(launchScheme);
+        final canLaunch = await canLaunchUrl(uri);
+        // Debug print removed
+
+        if (canLaunch) {
+          final didLaunch = await launchUrl(uri,
+              mode: LaunchMode.externalNonBrowserApplication);
+          // Debug print removed
+          return OpenMailAppResult(didOpen: didLaunch);
+        }
+      } catch (e) {
+        // Debug print removed
+      }
+
+      // Fallback to mailto: scheme for composing emails
+      if (emailContent != null) {
+        try {
+          print('DEBUG: Trying mailto fallback');
+          final mailtoUri = Uri(
+            scheme: 'mailto',
+            path: emailContent.to?.join(',') ?? '',
+            queryParameters: {
+              'subject': emailContent.subject ?? '',
+              'body': emailContent.body ?? '',
+              if (emailContent.cc?.isNotEmpty ?? false)
+                'cc': emailContent.cc!.join(','),
+              if (emailContent.bcc?.isNotEmpty ?? false)
+                'bcc': emailContent.bcc!.join(','),
+            },
+          );
+
+          print('DEBUG: Mailto URI: $mailtoUri');
+          final didLaunch = await launchUrl(mailtoUri);
+          return OpenMailAppResult(didOpen: didLaunch);
+        } catch (e) {
+          print('ERROR: Mailto fallback failed: $e');
+        }
+      }
     }
+
     return OpenMailAppResult(didOpen: false);
   }
 
@@ -484,30 +683,49 @@ class MailApp {
     if (composeData == null || content == null) {
       return null;
     }
+
+    // Special case for Gmail
+    if (name == 'Gmail') {
+      // Gmail on iOS has specific format requirements
+      final recipient = content.to?.join(',') ?? '';
+      final subject = Uri.encodeComponent(content.subject ?? '');
+      final body = Uri.encodeComponent(content.body ?? '');
+      return 'googlegmail://co?to=$recipient&subject=$subject&body=$body';
+    }
+
+    // Standard implementation for other apps
     var scheme = composeData!.scheme;
     final qsSeparator = composeData!.queryStringSeparator ?? '?';
     final qsPairSeparator = composeData!.queryStringPairSeparator ?? '&';
 
+    // Track if we've added any parameters yet
+    bool firstParam = true;
+
     if (content.to?.isNotEmpty == true) {
       scheme +=
-          '$qsSeparator${composeData!.toParameter}=${content.to!.join(',')}';
+          '${firstParam ? qsSeparator : qsPairSeparator}${composeData!.toParameter}=${content.to!.join(',')}';
+      firstParam = false;
     }
     if (content.cc?.isNotEmpty == true) {
       scheme +=
-          '$qsPairSeparator${composeData!.ccParameter}=${content.cc!.join(',')}';
+          '${firstParam ? qsSeparator : qsPairSeparator}${composeData!.ccParameter}=${content.cc!.join(',')}';
+      firstParam = false;
     }
     if (content.bcc?.isNotEmpty == true) {
       scheme +=
-          '$qsPairSeparator${composeData!.bccParameter}=${content.bcc!.join(',')}';
+          '${firstParam ? qsSeparator : qsPairSeparator}${composeData!.bccParameter}=${content.bcc!.join(',')}';
+      firstParam = false;
     }
     if (content.subject?.isNotEmpty == true) {
       scheme +=
-          '$qsPairSeparator${composeData!.subjectParameter}=${Uri.encodeComponent(content.subject!)}';
+          '${firstParam ? qsSeparator : qsPairSeparator}${composeData!.subjectParameter}=${Uri.encodeComponent(content.subject!)}';
+      firstParam = false;
     }
     if (content.body?.isNotEmpty == true) {
       scheme +=
-          '$qsPairSeparator${composeData!.bodyParameter}=${Uri.encodeComponent(content.body!)}';
+          '${firstParam ? qsSeparator : qsPairSeparator}${composeData!.bodyParameter}=${Uri.encodeComponent(content.body!)}';
     }
+
     return scheme;
   }
 }

@@ -1,5 +1,7 @@
 PODS:
   - Flutter (1.0.0)
+  - integration_test (0.0.1):
+    - Flutter
   - open_mail (0.0.1):
     - Flutter
   - url_launcher_ios (0.0.1):
@@ -7,12 +9,15 @@ PODS:
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
+  - integration_test (from `.symlinks/plugins/integration_test/ios`)
   - open_mail (from `.symlinks/plugins/open_mail/ios`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
 
 EXTERNAL SOURCES:
   Flutter:
     :path: Flutter
+  integration_test:
+    :path: ".symlinks/plugins/integration_test/ios"
   open_mail:
     :path: ".symlinks/plugins/open_mail/ios"
   url_launcher_ios:
@@ -20,6 +25,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  integration_test: 252f60fa39af5e17c3aa9899d35d908a0721b573
   open_mail: 490d7633e966119c4b6a4f9ddf6c0747b9a7e8c9
   url_launcher_ios: 5334b05cef931de560670eeae103fd3e431ac3fe
 

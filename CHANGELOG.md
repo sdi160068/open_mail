@@ -1,5 +1,20 @@
 # Changelog
 
+#
+
+## [1.1.0] - 2025-05-26
+
+### Added
+
+- Robust fallback logic for Apple Mail on iOS: always uses `mailto:` for compose, ensuring pre-filled fields work reliably.
+- Improved compose URL generation for Gmail and other supported apps.
+- Comprehensive error handling and fallback to `mailto:` for all mail apps if custom scheme fails.
+
+### Changed
+
+- Cleaned up and productionized code: removed all debug/print statements and development-only code.
+- Ready for production release.
+
 All notable changes to this project will be documented in this file.
 
 ## [1.0.1] - 2025-05-25

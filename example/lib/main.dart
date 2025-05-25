@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
+
 import 'package:flutter/material.dart';
 import 'package:open_mail/open_mail.dart';
 
@@ -51,38 +52,44 @@ class MyApp extends StatelessWidget {
             ElevatedButton(
               child: const Text("Debug Mail App Detection"),
               onPressed: () async {
-                // Get installed mail apps
-                var options = await OpenMail.getMailApps();
-
-                // Show the list of detected mail apps
-                showDialog(
-                  context: context,
-                  builder: (_) {
-                    return AlertDialog(
-                      title: Text('Detected ${options.length} Mail Apps'),
-                      content: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: options
-                              .map((app) => ListTile(
-                                    title:
-                                        Text('${app.name} (${app.nativeId})'),
-                                    subtitle:
-                                        Text('ID: ${app.nativeId ?? "No ID"}'),
-                                  ))
-                              .toList(),
+                try {
+                  // Get installed mail apps with detailed logging
+                  // Debug print removed
+                  var options = await OpenMail.getMailApps();
+                  // Debug print removed
+                  // Debug print removed
+                  // Show the list of detected mail apps
+                  showDialog(
+                    context: context,
+                    builder: (_) {
+                      return AlertDialog(
+                        title: Text('Detected ${options.length} Mail Apps'),
+                        content: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: options
+                                .map((app) => ListTile(
+                                      title:
+                                          Text('${app.name} (${app.nativeId})'),
+                                      subtitle: Text(
+                                          'ID: ${app.nativeId ?? "No ID"}, Scheme: ${app.iosLaunchScheme ?? "No Scheme"}'),
+                                    ))
+                                .toList(),
+                          ),
                         ),
-                      ),
-                      actions: [
-                        TextButton(
-                          child: const Text('Close'),
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                      ],
-                    );
-                  },
-                );
+                        actions: [
+                          TextButton(
+                            child: const Text('Close'),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                } catch (e) {
+                  // Debug print removed
+                }
               },
             ),
 
@@ -90,32 +97,59 @@ class MyApp extends StatelessWidget {
             ElevatedButton(
               child: const Text('Open mail app, with email already composed'),
               onPressed: () async {
-                // Define the content of the email
+                // Define the content of the email with debug info
                 EmailContent email = EmailContent(
                   to: ['user@domain.com'], // Recipient(s)
                   subject: 'Hello!', // Email subject
-                  body: 'How are you doing?', // Email body
+                  body:
+                      'How are you doing? [Debug: ${DateTime.now()}]', // Email body with timestamp for debugging
                   cc: ['user2@domain.com', 'user3@domain.com'], // CC recipients
                   bcc: ['boss@domain.com'], // BCC recipients
                 );
 
-                // Try to compose a new email in a mail app
-                OpenMailAppResult result =
-                    await OpenMail.composeNewEmailInMailApp(
-                        nativePickerTitle: 'Select email app to compose',
-                        emailContent: email);
+                // Debug log
+                // Debug print removed
 
-                // If no mail apps are installed
-                if (!result.didOpen && !result.canOpen) {
-                  showNoMailAppsDialog(context);
-                }
-                // If multiple mail apps are available on iOS, show a picker
-                else if (!result.didOpen && result.canOpen) {
+                OpenMailAppResult result;
+
+                try {
+                  // Try to compose a new email in a mail app
+                  result = await OpenMail.composeNewEmailInMailApp(
+                      nativePickerTitle: 'Select email app to compose',
+                      emailContent: email);
+
+                  // Debug log after attempt
+                  // Debug print removed
+
+                  // If no mail apps are installed
+                  if (!result.didOpen && !result.canOpen) {
+                    showNoMailAppsDialog(context);
+                  }
+                  // If multiple mail apps are available on iOS, show a picker
+                  else if (!result.didOpen && result.canOpen) {
+                    showDialog(
+                      context: context,
+                      builder: (_) => MailAppPickerDialog(
+                        mailApps: result.options,
+                        emailContent: email,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  // Catch and print any exceptions
+                  // Debug print removed
+                  // Show error dialog to user
                   showDialog(
                     context: context,
-                    builder: (_) => MailAppPickerDialog(
-                      mailApps: result.options,
-                      emailContent: email,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Error'),
+                      content: Text('Failed to compose email: $e'),
+                      actions: [
+                        TextButton(
+                          child: const Text('OK'),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ],
                     ),
                   );
                 }
@@ -130,10 +164,8 @@ class MyApp extends StatelessWidget {
                   // Retrieve the list of installed mail apps
                   var apps = await OpenMail.getMailApps();
 
-                  print('Installed mail apps:');
-                  for (var app in apps) {
-                    print('Name: ${app.name}, Scheme: ${app.iosLaunchScheme}');
-                  }
+                  // Debug print removed
+                  // Debug print removed
 
                   // If no mail apps are installed
                   if (apps.isEmpty) {
@@ -161,7 +193,7 @@ class MyApp extends StatelessWidget {
                     );
                   }
                 } catch (e) {
-                  print('Error retrieving mail apps: $e');
+                  // Debug print removed
                 }
               },
             ),
