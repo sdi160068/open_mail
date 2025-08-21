@@ -7,28 +7,45 @@ import android.net.Uri
 import androidx.annotation.NonNull
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
-import org.json.JSONArray
-import org.json.JSONObject
-
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import io.flutter.plugin.common.PluginRegistry.Registrar
 
 class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
     private lateinit var channel: MethodChannel
     private lateinit var applicationContext: Context
 
-    override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-        channel = MethodChannel(flutterPluginBinding.binaryMessenger, "open_mail")
+    override fun onAttachedToEngine(
+            @NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding
+    ) {
+        // Although getFlutterEngine is deprecated we still need to use it for
+        // apps not updated to Flutter Android v2 embedding
+        channel = MethodChannel(flutterPluginBinding.flutterEngine.dartExecutor, "open_mail_app")
         channel.setMethodCallHandler(this)
         init(flutterPluginBinding.applicationContext)
     }
 
-    // The companion object with the static registerWith method has been removed
-    // as it was using outdated Flutter plugin APIs and causing compilation errors.
-    // Modern Flutter plugins rely on the FlutterPlugin interface implementation.
+    // This static function is optional and equivalent to onAttachedToEngine. It supports the old
+    // pre-Flutter-1.12 Android projects. You are encouraged to continue supporting
+    // plugin registration via this function while apps migrate to use the new Android APIs
+    // post-flutter-1.12 via https://flutter.dev/go/android-project-migration.
+    //
+    // It is encouraged to share logic between onAttachedToEngine and registerWith to keep
+    // them functionally equivalent. Only one of onAttachedToEngine or registerWith will be called
+    // depending on the user's project. onAttachedToEngine or registerWith must both be defined
+    // in the same class.
+    companion object {
+        @JvmStatic
+        fun registerWith(registrar: Registrar) {
+            val channel = MethodChannel(registrar.messenger(), "open_mail_app")
+            val plugin = OpenMailAppPlugin()
+            channel.setMethodCallHandler(plugin)
+            plugin.init(registrar.context())
+        }
+    }
 
     fun init(context: Context) {
         applicationContext = context
@@ -42,24 +59,23 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
             val opened = specificEmailAppIntent(call.argument("name")!!)
             result.success(opened)
         } else if (call.method == "composeNewEmailInMailApp") {
-            val opened = composeNewEmailAppIntent(call.argument("nativePickerTitle") ?: "", call.argument("emailContent") ?: "")
+            val opened =
+                    composeNewEmailAppIntent(
+                            call.argument("nativePickerTitle") ?: "",
+                            call.argument("emailContent") ?: ""
+                    )
             result.success(opened)
         } else if (call.method == "composeNewEmailInSpecificMailApp") {
-            val opened = composeNewEmailInSpecificEmailAppIntent(call.argument("name") ?: "", call.argument("emailContent") ?: "")
+            val opened =
+                    composeNewEmailInSpecificEmailAppIntent(
+                            call.argument("name") ?: "",
+                            call.argument("emailContent") ?: ""
+                    )
             result.success(opened)
         } else if (call.method == "getMainApps") {
             val apps = getInstalledMailApps()
-            
-            // Create JSON manually rather than using Gson to avoid issues with obfuscation
-            val jsonArray = JSONArray()
-            for (app in apps) {
-                val jsonObj = JSONObject()
-                jsonObj.put("name", app.name)
-                jsonObj.put("nativeId", app.nativeId)
-                jsonArray.put(jsonObj)
-            }
-            
-            result.success(jsonArray.toString())
+            val appsJson = Gson().toJson(apps)
+            result.success(appsJson)
         } else {
             result.notImplemented()
         }
@@ -77,7 +93,8 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
         if (activitiesHandlingEmails.isNotEmpty()) {
             // use the first email package to create the chooserIntent
             val firstEmailPackageName = activitiesHandlingEmails.first().activityInfo.packageName
-            val firstEmailInboxIntent = packageManager.getLaunchIntentForPackage(firstEmailPackageName)
+            val firstEmailInboxIntent =
+                    packageManager.getLaunchIntentForPackage(firstEmailPackageName)
             val emailAppChooserIntent = Intent.createChooser(firstEmailInboxIntent, chooserTitle)
 
             // created UI for other email packages and add them to the chooser
@@ -97,7 +114,11 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
                 }
             }
             val extraEmailInboxIntents = emailInboxIntents.toTypedArray()
-            val finalIntent = emailAppChooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, extraEmailInboxIntents)
+            val finalIntent =
+                    emailAppChooserIntent.putExtra(
+                            Intent.EXTRA_INITIAL_INTENTS,
+                            extraEmailInboxIntents
+                    )
             finalIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
             applicationContext.startActivity(finalIntent)
             return true
@@ -106,60 +127,67 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
         }
     }
 
-    private fun composeNewEmailAppIntent(@NonNull chooserTitle: String, @NonNull contentJson: String): Boolean {
+    private fun composeNewEmailAppIntent(
+            @NonNull chooserTitle: String,
+            @NonNull contentJson: String
+    ): Boolean {
         val packageManager = applicationContext.packageManager
-        
-        // Parse the JSON manually to avoid GSON issues with release builds
-        val jsonObject = try {
-            org.json.JSONObject(contentJson)
-        } catch (e: Exception) {
-            // If parsing fails, return false
-            return false
-        }
-        
-        // Extract email content fields directly
-        val emailContent = parseEmailContent(jsonObject)
+        val emailContent = Gson().fromJson(contentJson, EmailContent::class.java)
         val emailIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))
 
         val activitiesHandlingEmails = packageManager.queryIntentActivities(emailIntent, 0)
         if (activitiesHandlingEmails.isNotEmpty()) {
-            val emailAppChooserIntent = Intent.createChooser(Intent(Intent.ACTION_SENDTO).apply {
-                data = Uri.parse("mailto:")
-                type = "text/plain"
-                setClassName(activitiesHandlingEmails.first().activityInfo.packageName, activitiesHandlingEmails.first().activityInfo.name)
+            val emailAppChooserIntent =
+                    Intent.createChooser(
+                            Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("mailto:")
+                                type = "text/plain"
+                                setClassName(
+                                        activitiesHandlingEmails.first().activityInfo.packageName,
+                                        activitiesHandlingEmails.first().activityInfo.name
+                                )
 
-                putExtra(Intent.EXTRA_EMAIL, emailContent.to?.toTypedArray() ?: emptyArray<String>())
-                putExtra(Intent.EXTRA_CC, emailContent.cc?.toTypedArray() ?: emptyArray<String>())
-                putExtra(Intent.EXTRA_BCC, emailContent.bcc?.toTypedArray() ?: emptyArray<String>())
-                putExtra(Intent.EXTRA_SUBJECT, emailContent.subject)
-                putExtra(Intent.EXTRA_TEXT, emailContent.body)
-            }, chooserTitle)
+                                putExtra(Intent.EXTRA_EMAIL, emailContent.to.toTypedArray())
+                                putExtra(Intent.EXTRA_CC, emailContent.cc.toTypedArray())
+                                putExtra(Intent.EXTRA_BCC, emailContent.bcc.toTypedArray())
+                                putExtra(Intent.EXTRA_SUBJECT, emailContent.subject)
+                                putExtra(Intent.EXTRA_TEXT, emailContent.body)
+                            },
+                            chooserTitle
+                    )
 
             val emailComposingIntents = mutableListOf<LabeledIntent>()
             for (i in 1 until activitiesHandlingEmails.size) {
                 val activityHandlingEmail = activitiesHandlingEmails[i]
                 val packageName = activityHandlingEmail.activityInfo.packageName
-                    emailComposingIntents.add(
+                emailComposingIntents.add(
                         LabeledIntent(
                                 Intent(Intent.ACTION_SENDTO).apply {
                                     data = Uri.parse("mailto:")
                                     type = "text/plain"
-                                    setClassName(activityHandlingEmail.activityInfo.packageName, activityHandlingEmail.activityInfo.name)
-                                    putExtra(Intent.EXTRA_EMAIL, emailContent.to?.toTypedArray() ?: emptyArray<String>())
-                                    putExtra(Intent.EXTRA_CC, emailContent.cc?.toTypedArray() ?: emptyArray<String>())
-                                    putExtra(Intent.EXTRA_BCC, emailContent.bcc?.toTypedArray() ?: emptyArray<String>())
+                                    setClassName(
+                                            activityHandlingEmail.activityInfo.packageName,
+                                            activityHandlingEmail.activityInfo.name
+                                    )
+                                    putExtra(Intent.EXTRA_EMAIL, emailContent.to.toTypedArray())
+                                    putExtra(Intent.EXTRA_CC, emailContent.cc.toTypedArray())
+                                    putExtra(Intent.EXTRA_BCC, emailContent.bcc.toTypedArray())
                                     putExtra(Intent.EXTRA_SUBJECT, emailContent.subject)
                                     putExtra(Intent.EXTRA_TEXT, emailContent.body)
                                 },
-                            packageName,
-                            activityHandlingEmail.loadLabel(packageManager),
-                            activityHandlingEmail.icon
+                                packageName,
+                                activityHandlingEmail.loadLabel(packageManager),
+                                activityHandlingEmail.icon
                         )
-                    )
+                )
             }
 
             val extraEmailComposingIntents = emailComposingIntents.toTypedArray()
-            val finalIntent = emailAppChooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, extraEmailComposingIntents)
+            val finalIntent =
+                    emailAppChooserIntent.putExtra(
+                            Intent.EXTRA_INITIAL_INTENTS,
+                            extraEmailComposingIntents
+                    )
             finalIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
             applicationContext.startActivity(finalIntent)
             return true
@@ -173,53 +201,50 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
         val packageManager = applicationContext.packageManager
 
         val activitiesHandlingEmails = packageManager.queryIntentActivities(emailIntent, 0)
-        val activityHandlingEmail = activitiesHandlingEmails.firstOrNull {
-            it.loadLabel(packageManager) == name
-        } ?: return false
+        val activityHandlingEmail =
+                activitiesHandlingEmails.firstOrNull { it.loadLabel(packageManager) == name }
+                        ?: return false
 
         val firstEmailPackageName = activityHandlingEmail.activityInfo.packageName
-        val emailInboxIntent = packageManager.getLaunchIntentForPackage(firstEmailPackageName)
-                ?: return false
+        val emailInboxIntent =
+                packageManager.getLaunchIntentForPackage(firstEmailPackageName) ?: return false
 
         emailInboxIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
         applicationContext.startActivity(emailInboxIntent)
         return true
     }
 
-    private fun composeNewEmailInSpecificEmailAppIntent(@NonNull name: String, @NonNull contentJson: String): Boolean {
+    private fun composeNewEmailInSpecificEmailAppIntent(
+            @NonNull name: String,
+            @NonNull contentJson: String
+    ): Boolean {
         val packageManager = applicationContext.packageManager
-        
-        // Parse the JSON manually to avoid GSON issues with release builds
-        val jsonObject = try {
-            org.json.JSONObject(contentJson)
-        } catch (e: Exception) {
-            // If parsing fails, return false
-            return false
-        }
-        
-        // Extract email content fields directly
-        val emailContent = parseEmailContent(jsonObject)
+        val emailContent = Gson().fromJson(contentJson, EmailContent::class.java)
         val emailIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))
 
         val activitiesHandlingEmails = packageManager.queryIntentActivities(emailIntent, 0)
-        val specificEmailActivity = activitiesHandlingEmails.firstOrNull {
-            it.loadLabel(packageManager) == name
-        } ?: return false
+        val specificEmailActivity =
+                activitiesHandlingEmails.firstOrNull { it.loadLabel(packageManager) == name }
+                        ?: return false
 
-        val composeEmailIntent = Intent(Intent.ACTION_SENDTO).apply {
-            data = Uri.parse("mailto:")
-            type = "text/plain"
-            setClassName(specificEmailActivity.activityInfo.packageName, specificEmailActivity.activityInfo.name)
-            putExtra(Intent.EXTRA_EMAIL, emailContent.to?.toTypedArray() ?: emptyArray<String>())
-            putExtra(Intent.EXTRA_CC, emailContent.cc?.toTypedArray() ?: emptyArray<String>())
-            putExtra(Intent.EXTRA_BCC, emailContent.bcc?.toTypedArray() ?: emptyArray<String>())
-            putExtra(Intent.EXTRA_SUBJECT, emailContent.subject)
-            putExtra(Intent.EXTRA_TEXT, emailContent.body)
-        }
+        val composeEmailIntent =
+                Intent(Intent.ACTION_SENDTO).apply {
+                    data = Uri.parse("mailto:")
+                    type = "text/plain"
+                    setClassName(
+                            specificEmailActivity.activityInfo.packageName,
+                            specificEmailActivity.activityInfo.name
+                    )
+                    putExtra(Intent.EXTRA_EMAIL, emailContent.to.toTypedArray())
+                    putExtra(Intent.EXTRA_CC, emailContent.cc.toTypedArray())
+                    putExtra(Intent.EXTRA_BCC, emailContent.bcc.toTypedArray())
+                    putExtra(Intent.EXTRA_SUBJECT, emailContent.subject)
+                    putExtra(Intent.EXTRA_TEXT, emailContent.body)
+                }
 
         composeEmailIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
         applicationContext.startActivity(composeEmailIntent)
-        
+
         return true
     }
 
@@ -232,73 +257,21 @@ class OpenMailAppPlugin : FlutterPlugin, MethodCallHandler {
             val mailApps = mutableListOf<App>()
             for (i in 0 until activitiesHandlingEmails.size) {
                 val activityHandlingEmail = activitiesHandlingEmails[i]
-                val packageName = activityHandlingEmail.activityInfo.packageName
-                val appName = activityHandlingEmail.loadLabel(packageManager).toString()
-                mailApps.add(App(name = appName, nativeId = packageName))
+                mailApps.add(App(activityHandlingEmail.loadLabel(packageManager).toString()))
             }
             mailApps
         } else {
             emptyList()
         }
     }
-
-    /**
-     * Parse email content from JSONObject instead of using GSON
-     * This is more reliable in release builds with R8/ProGuard
-     */
-    private fun parseEmailContent(json: org.json.JSONObject): EmailContent {
-        val to = mutableListOf<String>()
-        val cc = mutableListOf<String>()
-        val bcc = mutableListOf<String>()
-        var subject: String? = null
-        var body: String? = null
-
-        try {
-            if (json.has("to") && !json.isNull("to")) {
-                val toArray = json.getJSONArray("to")
-                for (i in 0 until toArray.length()) {
-                    to.add(toArray.getString(i))
-                }
-            }
-            
-            if (json.has("cc") && !json.isNull("cc")) {
-                val ccArray = json.getJSONArray("cc")
-                for (i in 0 until ccArray.length()) {
-                    cc.add(ccArray.getString(i))
-                }
-            }
-            
-            if (json.has("bcc") && !json.isNull("bcc")) {
-                val bccArray = json.getJSONArray("bcc")
-                for (i in 0 until bccArray.length()) {
-                    bcc.add(bccArray.getString(i))
-                }
-            }
-            
-            if (json.has("subject") && !json.isNull("subject")) {
-                subject = json.getString("subject")
-            }
-            
-            if (json.has("body") && !json.isNull("body")) {
-                body = json.getString("body")
-            }
-        } catch (e: Exception) {
-            // Ignore parsing errors and use default values
-        }
-
-        return EmailContent(to, cc, bcc, subject, body)
-    }
 }
 
-data class App(
-        @SerializedName("name") val name: String,
-        @SerializedName("nativeId") val nativeId: String
-)
+data class App(@SerializedName("name") val name: String)
 
-data class EmailContent (
-        @SerializedName("to") val to: List<String>? = null,
-        @SerializedName("cc") val cc: List<String>? = null,
-        @SerializedName("bcc") val bcc: List<String>? = null,
-        @SerializedName("subject") val subject: String? = null,
-        @SerializedName("body") val body: String? = null
+data class EmailContent(
+        @SerializedName("to") val to: List<String>,
+        @SerializedName("cc") val cc: List<String>,
+        @SerializedName("bcc") val bcc: List<String>,
+        @SerializedName("subject") val subject: String,
+        @SerializedName("body") val body: String
 )

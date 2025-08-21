@@ -1,8 +1,8 @@
 name: open_mail
 description: A Flutter package to query the device for installed email apps and open them programmatically.
 version: 1.1.0
-homepage: https://github.com/Cuboid-Inc/open_mail
-repository: https://github.com/Cuboid-Inc/open_mail
+homepage: https://github.com/sdi160068/open_mail
+repository: https://github.com/sdi160068/open_mail
 
 environment:
   sdk: ">=2.17.0 <4.0.0"
